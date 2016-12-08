@@ -1,9 +1,15 @@
 #include "usb_thread.h"
-
+/*!
+ * \class UsbThread::UsbThread
+ * \brief A controller a thread performing IO on USB device with libusb
+ * please use open(const UsbDeviceDesc desc) for initialize thread.
+ * \param parent
+ */
 UsbThread::UsbThread(QObject *parent) : QThread(parent)
 {
     this->isStop = false;
     this->isCloseTransfer = false;
+    this->cChannelName = new char[256];
 }
 
 UsbThread::~UsbThread()
@@ -15,6 +21,11 @@ UsbThread::~UsbThread()
     qDebug("~UsbThread()");
 }
 
+/*!
+ * \fn void open(const UsbDeviceDesc desc)
+ * \brief open USB device
+ * \param desc a description class for USB
+ */
 void UsbThread::open(const UsbDeviceDesc desc)
 {
     this->usbDesc = desc;
@@ -46,11 +57,6 @@ void UsbThread::_openHandle(const UsbDeviceDesc desc)
             int fid = getFirmwareId(desc.productName, desc.developer);
             if (fid != FIRMWARE_ERROR)
             {
-                hasFound = true;
-                FIRMWARE_ID = fid;
-                EP_SIZE = libusb_get_max_packet_size(dev, EP_ADDRESS);
-                qDebug("FIRMWARE %d (%d bytes)\n", FIRMWARE_ID, EP_SIZE);
-
                 err = libusb_open(dev, &this->dev_handle);
                 if (err < 0)
                 {
@@ -58,6 +64,11 @@ void UsbThread::_openHandle(const UsbDeviceDesc desc)
                     goto open_exit;
                 }
 
+                hasFound = true;
+                FIRMWARE_ID = fid;
+                EP_SIZE = libusb_get_max_packet_size(dev, EP_ADDRESS);
+                channelName = usbDesc.hashName();
+                qDebug("FIRMWARE %d (%d bytes)\n", FIRMWARE_ID, EP_SIZE);
                 break;
             }
         }
@@ -97,7 +108,7 @@ void UsbThread::run()
 
     TRY("claim interface", libusb_claim_interface(this->dev_handle, 0));
     TRY("init transfer", init_transfer(EP_ADDRESS));
-
+    init_nanomsg();
     forever {
         bool stop = false;
         lock.lock();
@@ -120,8 +131,9 @@ void UsbThread::run()
     TRY("release interface", libusb_release_interface(this->dev_handle, 0));
     libusb_close(this->dev_handle);
     libusb_exit(this->context);
+    exit_nanomsg();
 
-    qDebug("end run()\n");
+    qDebug("end run()\ntotal missing: %d", missingCount);
 }
 
 int UsbThread::getFirmwareId(QString product, QString manufacturer)
@@ -129,8 +141,8 @@ int UsbThread::getFirmwareId(QString product, QString manufacturer)
     // default fid indicating no firmware
     int fid = FIRMWARE_ERROR;
 
-    if (product.compare(FIRMWARE_CA_ECG_MONITOR__PD, Qt::CaseInsensitive)
-            && manufacturer.compare(FIRMWARE_CA_ECG_MONITOR__MF, Qt::CaseInsensitive))
+    if (product.compare(FIRMWARE_CA_ECG_MONITOR__PD, Qt::CaseInsensitive) == 0
+            && manufacturer.compare(FIRMWARE_CA_ECG_MONITOR__MF, Qt::CaseInsensitive) == 0)
     {
         fid = FIRMWARE_CA_ECG_MONITOR;
         mnt.ref_min = 0;
@@ -152,8 +164,8 @@ int UsbThread::getFirmwareId(QString product, QString manufacturer)
         mnt.descriptor.append("V5");
         mnt.descriptor.append("V6");
     }
-    else if (product.compare(FIRMWARE_CA_PULSE_OXIMETER__PD, Qt::CaseInsensitive)
-             && manufacturer.compare(FIRMWARE_CA_PULSE_OXIMETER__MF, Qt::CaseInsensitive))
+    else if (product.compare(FIRMWARE_CA_PULSE_OXIMETER__PD, Qt::CaseInsensitive) == 0
+             && manufacturer.compare(FIRMWARE_CA_PULSE_OXIMETER__MF, Qt::CaseInsensitive) == 0)
     {
         fid = FIRMWARE_CA_PULSE_OXIMETER;
         mnt.ref_min = 0;
@@ -166,8 +178,8 @@ int UsbThread::getFirmwareId(QString product, QString manufacturer)
         mnt.descriptor.append("LED1");
         mnt.descriptor.append("LED2");
     }
-    else if (product.compare(FIRMWARE_CA_TEST__PD, Qt::CaseInsensitive)
-             && manufacturer.compare(FIRMWARE_CA_TEST__MF, Qt::CaseInsensitive))
+    else if (product.compare(FIRMWARE_CA_TEST__PD, Qt::CaseInsensitive) == 0
+             && manufacturer.compare(FIRMWARE_CA_TEST__MF, Qt::CaseInsensitive) == 0)
     {
         fid = FIRMWARE_CA_TEST;
         mnt.ref_min = 0;
@@ -209,9 +221,27 @@ int UsbThread::init_transfer(uint8_t endpoint)
     return ret_err;
 }
 
+int UsbThread::init_nanomsg()
+{
+    nanoSock = nn_socket(AF_SP, NN_PUB);
+    Q_ASSERT( nanoSock >= 0 );
+    QString url = QString("ipc:///tmp/%1.ipc").arg(channelName);
+    char *name = url.toLocal8Bit().data();
+    nanoEndpoint = nn_bind(nanoSock, name);
+    Q_ASSERT( nanoEndpoint >= 0 );
+
+    return 0;
+}
+
+void UsbThread::exit_nanomsg()
+{
+    Q_ASSERT( nn_shutdown(nanoSock, nanoEndpoint) >= 0 );
+    Q_ASSERT( nn_close(nanoSock) >= 0 );
+}
+
 void UsbThread::callback_transfer(struct libusb_transfer *xfr)
 {
-    int ret_err;
+    // stop condition
     bool stop = false;
     lock.lock();
     stop = this->isStop;
@@ -224,11 +254,111 @@ void UsbThread::callback_transfer(struct libusb_transfer *xfr)
         this->isCloseTransfer = true;
         lock.unlock();
         closeTransfer.wakeAll();
-        qDebug("clear transfer complete!");
+
         return;
     }
+    // end stop condition
 
-    TRY("submit transfer", libusb_submit_transfer(xfr));
+    // read USB
+    uint8_t *packet = xfr->buffer;
+    int bytes;
+    switch(FIRMWARE_ID)
+    {
+    case FIRMWARE_CA_TEST:
+        Q_ASSERT( xfr->actual_length >= 2 );
+        bytes = nn_send(nanoSock, packet, 2, NN_DONTWAIT);
+        if (bytes < 0 && nn_errno() == EAGAIN) missingCount++;
+
+        break;
+    case FIRMWARE_CA_PULSE_OXIMETER:
+
+        Q_ASSERT( xfr->actual_length >= 6);
+        {
+            int64_t *data = (int64_t*)nn_allocmsg(sizeof(uint64_t)*2, 0);
+            data[0] = (packet[0] << 16) & 0xFF0000;
+            data[0] += (packet[1] << 8) & 0x00FF00;
+            data[0] += (packet[2] & 0x0000FF);
+            data[1] = (packet[3] << 16) & 0xFF0000;
+            data[1] += (packet[4] << 8) & 0x00FF00;
+            data[1] += (packet[5] & 0x0000FF);
+            bytes = nn_send(nanoSock, data, NN_MSG, NN_DONTWAIT);
+            if (bytes < 0 && nn_errno() == EAGAIN) missingCount++;
+        }
+        break;
+    case FIRMWARE_CA_ECG_MONITOR:
+        Q_ASSERT( xfr->actual_length >= 27 );
+        {
+            int64_t *data = (int64_t*)nn_allocmsg(sizeof(uint64_t)*12, 0);
+            /**
+              *  9 Block of 3 bytes diagram
+              * Block /Byte 1 2 3
+              *     1:      X X X
+              *     2:      V6
+              *     3:      Lead-I
+              *     4:      Lead-II
+              *     5:      V2
+              *     6:      V3
+              *     7:      V4
+              *     8:      V5
+              *     9:      V6
+              *
+              *  Calculations
+              * aVR = -(Lead II + Lead I) /2
+              * aVL = LeadI - LeadII/2
+              * aVF = LeadII - LeadI/2
+              */
+
+            // Lead I
+            data[0] = (packet[6] << 16) & 0xFF0000;
+            data[0] += (packet[7] << 8) & 0x00FF00;
+            data[0] += (packet[8] & 0x0000FF);
+            // Lead II
+            data[1] = (packet[9] << 16) & 0xFF0000;
+            data[1] += (packet[10] << 8) & 0x00FF00;
+            data[1] += (packet[11] & 0x0000FF);
+            // V1
+            data[6] = (packet[24] << 16) & 0xFF0000;
+            data[6] += (packet[25] << 8) & 0x00FF00;
+            data[6] += (packet[26] & 0x0000FF);
+            // V2
+            data[7] = (packet[12] << 16) & 0xFF0000;
+            data[7] += (packet[13] << 8) & 0x00FF00;
+            data[7] += (packet[14] & 0x0000FF);
+            // V3
+            data[8] = (packet[15] << 16) & 0xFF0000;
+            data[8] += (packet[16] << 8) & 0x00FF00;
+            data[8] += (packet[17] & 0x0000FF);
+            // V4
+            data[9] = (packet[18] << 16) & 0xFF0000;
+            data[9] += (packet[19] << 8) & 0x00FF00;
+            data[9] += (packet[20] & 0x0000FF);
+            // V5
+            data[10] = (packet[21] << 16) & 0xFF0000;
+            data[10] += (packet[22] << 8) & 0x00FF00;
+            data[10] += (packet[23] & 0x0000FF);
+            // V6
+            data[11] = (packet[3] << 16) & 0xFF0000;
+            data[11] += (packet[4] << 8) & 0x00FF00;
+            data[11] += (packet[5] & 0x0000FF);
+            // Lead III
+            data[2] = data[1] - data[0];
+            // aVR
+            data[3] = -(data[1]+data[0])/2;
+            // aVL
+            data[4] = data[0] - data[1]/2;
+            // aVF
+            data[5] = data[1] - data[0]/2;
+            //BUG: HERE
+            bytes = nn_send(nanoSock, &data, NN_MSG, NN_DONTWAIT);
+            if (bytes < 0 || nn_errno() == EAGAIN) missingCount++;
+       }
+       break;
+    default:
+       break;
+    }
+    // end read USB
+
+    Q_ASSERT( libusb_submit_transfer(xfr) >= 0);
 }
 
 void LIBUSB_CALL callback_wrapper(struct libusb_transfer *xfr)

@@ -4,9 +4,13 @@
 #include <QThread>
 #include <QMutex>
 #include <QWaitCondition>
+
 extern "C" {
 #include "libusb.h"
+#include "nanomsg/nn.h"
+#include "nanomsg/pubsub.h"
 }
+
 #include "usb_service.h"
 #include "firmware.h"
 
@@ -48,16 +52,22 @@ private:
     libusb_device_handle *dev_handle = NULL;
     // nanomsg variables
     QString channelName;
+    char *cChannelName;
+    int nanoSock;
+    int nanoEndpoint;
     // local variables
     int FIRMWARE_ID;
     int EP_SIZE;
     measurement_t mnt;
     UsbDeviceDesc usbDesc;
     uint8_t buffer[1024];
+    long missingCount = 0;
 
     // functions
     int getFirmwareId(QString strProduct, QString strManufacturer);
     int init_transfer(uint8_t endpoint);
+    int init_nanomsg();
+    void exit_nanomsg();
     void _openHandle(const UsbDeviceDesc desc);
 
 };
