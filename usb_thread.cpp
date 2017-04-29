@@ -9,7 +9,6 @@ UsbThread::UsbThread(QObject *parent) : QThread(parent)
 {
     this->isStop = false;
     this->isCloseTransfer = false;
-    this->cChannelName = new char[256];
 }
 
 UsbThread::~UsbThread()
@@ -32,7 +31,13 @@ void UsbThread::open(const UsbDeviceDesc desc)
     start(HighPriority);
 }
 
-void UsbThread::_openHandle(const UsbDeviceDesc desc)
+void UsbThread::open(const UsbDeviceDesc desc, int extraIndex)
+{
+    this->extraIndex = extraIndex;
+    open(desc);
+}
+
+void UsbThread::openHandle(const UsbDeviceDesc desc)
 {
     libusb_device **list, *dev;
     int i=0;
@@ -77,6 +82,7 @@ void UsbThread::_openHandle(const UsbDeviceDesc desc)
     if (hasFound)
     {
         emit deviceConnected(this->usbDesc);
+        emit deviceConnectedWithExtraId(this->usbDesc, this->extraIndex);
         emit printLogMessage(QString("channel %1 created").arg(channelName));
     } else {
         emit printLogMessage(QString("Not found device"));
@@ -94,21 +100,20 @@ void UsbThread::close()
 
 void UsbThread::run()
 {
-    int ret_err;
     TIMEVAL timeout = {1, 0};
 
     TRY("init usb context", libusb_init(&this->context));
 
     libusb_set_debug(this->context, LIBUSB_LOG_LEVEL_DEBUG);
-    this->_openHandle(this->usbDesc);
+    this->openHandle(this->usbDesc);
 
     libusb_reset_device(this->dev_handle);
     libusb_release_interface(this->dev_handle, 0);
 
 
     TRY("claim interface", libusb_claim_interface(this->dev_handle, 0));
-    TRY("init transfer", init_transfer(EP_ADDRESS));
-    init_nanomsg();
+    TRY("init transfer", initTransfer(EP_ADDRESS));
+    initNanomsg();
     forever {
         bool stop = false;
         lock.lock();
@@ -133,7 +138,7 @@ void UsbThread::run()
     libusb_exit(this->context);
     exit_nanomsg();
 
-    qDebug("end run()\ntotal missing: %d", missingCount);
+    qDebug("end run()\ntotal missing: %ld", missingCount);
 }
 
 int UsbThread::getFirmwareId(QString product, QString manufacturer)
@@ -194,7 +199,7 @@ int UsbThread::getFirmwareId(QString product, QString manufacturer)
     return fid;
 }
 
-int UsbThread::init_transfer(uint8_t endpoint)
+int UsbThread::initTransfer(uint8_t endpoint)
 {
     int ret_err = LIBUSB_SUCCESS;
     struct libusb_transfer *xfr;
@@ -221,7 +226,7 @@ int UsbThread::init_transfer(uint8_t endpoint)
     return ret_err;
 }
 
-int UsbThread::init_nanomsg()
+int UsbThread::initNanomsg()
 {
     nanoSock = nn_socket(AF_SP, NN_PUB);
     Q_ASSERT( nanoSock >= 0 );

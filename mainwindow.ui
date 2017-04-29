@@ -13,11 +13,15 @@
   <property name="windowTitle">
    <string>USB Monitor PC</string>
   </property>
+  <property name="windowIcon">
+   <iconset resource="main.qrc">
+    <normaloff>:/images/monitor.png</normaloff>:/images/monitor.png</iconset>
+  </property>
   <property name="autoFillBackground">
-   <bool>false</bool>
+   <bool>true</bool>
   </property>
   <property name="styleSheet">
-   <string notr="true">background-color: rgb(255, 255, 255);</string>
+   <string notr="true"/>
   </property>
   <property name="documentMode">
    <bool>true</bool>
@@ -41,8 +45,23 @@
       <property name="lineWidth">
        <number>0</number>
       </property>
+      <property name="verticalScrollBarPolicy">
+       <enum>Qt::ScrollBarAsNeeded</enum>
+      </property>
+      <property name="horizontalScrollBarPolicy">
+       <enum>Qt::ScrollBarAsNeeded</enum>
+      </property>
+      <property name="viewMode">
+       <enum>QMdiArea::SubWindowView</enum>
+      </property>
       <property name="documentMode">
        <bool>true</bool>
+      </property>
+      <property name="tabsClosable">
+       <bool>false</bool>
+      </property>
+      <property name="tabsMovable">
+       <bool>false</bool>
       </property>
      </widget>
     </item>
@@ -50,7 +69,7 @@
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="enabled">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
    <property name="geometry">
     <rect>
@@ -60,6 +79,29 @@
      <height>21</height>
     </rect>
    </property>
+   <property name="defaultUp">
+    <bool>false</bool>
+   </property>
+   <property name="nativeMenuBar">
+    <bool>true</bool>
+   </property>
+   <widget class="QMenu" name="menu_Save">
+    <property name="title">
+     <string>&amp;Save</string>
+    </property>
+    <addaction name="actionSettings"/>
+    <addaction name="actionExport_as_images"/>
+    <addaction name="actionExport_as_CSV"/>
+    <addaction name="actionExport_as_TXT"/>
+   </widget>
+   <widget class="QMenu" name="menu_Help">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <addaction name="action_About_MonitorUSB_PC"/>
+   </widget>
+   <addaction name="menu_Save"/>
+   <addaction name="menu_Help"/>
   </widget>
   <widget class="QDockWidget" name="devDock">
    <property name="floating">
@@ -80,44 +122,12 @@
    <widget class="QWidget" name="dockWidgetContents">
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <widget class="QListWidget" name="devlistWidget">
-       <property name="contextMenuPolicy">
-        <enum>Qt::CustomContextMenu</enum>
-       </property>
-       <property name="resizeMode">
-        <enum>QListView::Adjust</enum>
-       </property>
-       <property name="wordWrap">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
-  </widget>
-  <widget class="QDockWidget" name="workDock">
-   <property name="features">
-    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
-   </property>
-   <property name="windowTitle">
-    <string>Working Devices</string>
-   </property>
-   <attribute name="dockWidgetArea">
-    <number>1</number>
-   </attribute>
-   <widget class="QWidget" name="dockWidgetContents_2">
-    <layout class="QVBoxLayout" name="verticalLayout_2">
-     <item>
-      <widget class="QListWidget" name="listWidget">
-       <property name="contextMenuPolicy">
-        <enum>Qt::CustomContextMenu</enum>
-       </property>
-       <property name="resizeMode">
-        <enum>QListView::Adjust</enum>
-       </property>
-       <property name="wordWrap">
-        <bool>true</bool>
-       </property>
+      <widget class="QTreeWidget" name="treeWidget">
+       <column>
+        <property name="text">
+         <string notr="true">1</string>
+        </property>
+       </column>
       </widget>
      </item>
     </layout>
@@ -129,10 +139,6 @@
      <width>89</width>
      <height>111</height>
     </size>
-   </property>
-   <property name="styleSheet">
-    <string notr="true">background-color: rgb(255, 255, 255);
-border-color: rgb(0, 0, 0);</string>
    </property>
    <property name="features">
     <set>QDockWidget::DockWidgetClosable|QDockWidget::DockWidgetFloatable</set>
@@ -193,8 +199,40 @@ border-color: rgb(0, 0, 0);</string>
     </layout>
    </widget>
   </widget>
+  <action name="action_About_MonitorUSB_PC">
+   <property name="text">
+    <string>&amp;About MonitorUSB-PC</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Settings</string>
+   </property>
+  </action>
+  <action name="actionExport_as_images">
+   <property name="text">
+    <string>Export as images</string>
+   </property>
+  </action>
+  <action name="actionExport_as_CSV">
+   <property name="text">
+    <string>Export as CSV</string>
+   </property>
+  </action>
+  <action name="actionExport_as_TXT">
+   <property name="text">
+    <string>Export as TXT</string>
+   </property>
+  </action>
+  <action name="actionLine_Chart">
+   <property name="text">
+    <string>Realtime Graph</string>
+   </property>
+  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <resources/>
+ <resources>
+  <include location="main.qrc"/>
+ </resources>
  <connections/>
 </ui>

@@ -74,16 +74,6 @@ QVector<UsbDeviceDesc> *UsbService::listDevices()
 
 UsbDeviceDesc::UsbDeviceDesc() {}
 
-UsbDeviceDesc::UsbDeviceDesc(qint32 vid, qint32 pid, qint8 bus, qint8 address, QString productName, QString developer)
-{
-    this->vid = vid;
-    this->pid = pid;
-    this->bus = bus;
-    this->address = address;
-    this->productName = productName;
-    this->developer = developer;
-}
-
 QString UsbDeviceDesc::hashName()
 {
     QString name = productName;

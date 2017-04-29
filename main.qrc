@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/images">
+        <file alias="chart.png">images/chart.png</file>
+        <file alias="monitor.png">images/monitor.png</file>
+    </qresource>
+</RCC>

@@ -5,9 +5,12 @@
 #include <QStandardItemModel>
 #include <QStringBuilder>
 #include <QMessageBox>
-#include "app_var.h"
+#include <QTreeWidget>
+#include "version.h"
 #include "usb_service.h"
 #include "usb_thread.h"
+
+#include "graphwidget.h"
 
 namespace Ui {
 class MainWindow;
@@ -20,26 +23,26 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
+    void addTreeRoot(QString name, QString description);
+    void addTreeChild(QTreeWidgetItem *parent,
+                      QString name, QString description,
+                      QVariant userData);
 
 public slots:
     void refreshDevice();
-    void showDevListMenu(const QPoint &pos);
-    void showWorkerListMenu(const QPoint &pos);
     void openDeviceAction();
-    void closeDeviceAction();
-    void addWorker(UsbDeviceDesc);
+    void closeDeviceAction(); 
+    void showDevTreeMenu(const QPoint &pos);
+    void clickDeviceAction(QTreeWidgetItem*);
+    void addSubDeviceTree(UsbDeviceDesc description, int extraId);
 
 private:
-    // UIs
-    Ui::MainWindow *ui;
-    // Services
-    UsbService *usbService;
-    // Variables
-    QVector<UsbDeviceDesc> *devices = nullptr;
-    QMap<QString, UsbThread*> mapDeviceThread;
+    Ui::MainWindow  *ui;
+    UsbService      *usbService;
+    QVector<UsbDeviceDesc>      *devices = nullptr;
+    QMap<QString, UsbThread*>   mapDeviceThread;
     // Methods
-    void initUsbModel(QStandardItemModel *model);
-    void removeWorker(QString name);
+
 };
 
 #endif // MAINWINDOW_H
