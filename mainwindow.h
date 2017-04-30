@@ -6,6 +6,7 @@
 #include <QStringBuilder>
 #include <QMessageBox>
 #include <QTreeWidget>
+#include <QDebug>
 #include "version.h"
 #include "usb_service.h"
 #include "usb_thread.h"

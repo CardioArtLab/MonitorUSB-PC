@@ -22,7 +22,7 @@ public:
     QString developer;
 
 };
-Q_DECLARE_METATYPE(UsbDeviceDesc);
+Q_DECLARE_METATYPE(UsbDeviceDesc)
 
 class UsbService : public QObject
 {

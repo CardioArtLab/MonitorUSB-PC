@@ -47,7 +47,7 @@ protected:
 
 private:
     void exit_nanomsg();
-    void openHandle(const UsbDeviceDesc desc);
+    bool openHandle(const UsbDeviceDesc desc);
     int getFirmwareId(QString strProduct, QString strManufacturer);
     int initTransfer(uint8_t endpoint);
     int initNanomsg();

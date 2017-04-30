@@ -77,6 +77,10 @@ UsbDeviceDesc::UsbDeviceDesc() {}
 QString UsbDeviceDesc::hashName()
 {
     QString name = productName;
-    name.replace(" ", "_");
-    return QString("%1_%2%3").arg(name.toUpper()).arg(bus).arg(address);
+    if (productName.isEmpty() && developer.isEmpty()) {
+        return "(null)";
+    } else {
+        name.replace(" ", "_");
+        return QString("%1_%2%3").arg(name.toUpper()).arg(bus).arg(address);
+    }
 }

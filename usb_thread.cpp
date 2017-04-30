@@ -37,7 +37,7 @@ void UsbThread::open(const UsbDeviceDesc desc, int extraIndex)
     open(desc);
 }
 
-void UsbThread::openHandle(const UsbDeviceDesc desc)
+bool UsbThread::openHandle(const UsbDeviceDesc desc)
 {
     libusb_device **list, *dev;
     int i=0;
@@ -89,6 +89,8 @@ void UsbThread::openHandle(const UsbDeviceDesc desc)
     }
 open_exit:
     libusb_free_device_list(list, TRUE);
+
+    return hasFound;
 }
 
 void UsbThread::close()
@@ -105,40 +107,42 @@ void UsbThread::run()
     TRY("init usb context", libusb_init(&this->context));
 
     libusb_set_debug(this->context, LIBUSB_LOG_LEVEL_DEBUG);
-    this->openHandle(this->usbDesc);
 
-    libusb_reset_device(this->dev_handle);
-    libusb_release_interface(this->dev_handle, 0);
+    if (this->openHandle(this->usbDesc)) {
+
+        libusb_reset_device(this->dev_handle);
+        libusb_release_interface(this->dev_handle, 0);
 
 
-    TRY("claim interface", libusb_claim_interface(this->dev_handle, 0));
-    TRY("init transfer", initTransfer(EP_ADDRESS));
-    initNanomsg();
-    forever {
-        bool stop = false;
+        TRY("claim interface", libusb_claim_interface(this->dev_handle, 0));
+        TRY("init transfer", initTransfer(EP_ADDRESS));
+        initNanomsg();
+        forever {
+            bool stop = false;
+            lock.lock();
+            stop = this->isStop;
+            lock.unlock();
+
+            if (stop) break;
+            libusb_handle_events_timeout(this->context, &timeout);
+        }
+        qDebug("read isClose");
         lock.lock();
-        stop = this->isStop;
+        bool isClose = this->isCloseTransfer;
         lock.unlock();
 
-        if (stop) break;
-        libusb_handle_events_timeout(this->context, &timeout);
+        if (!isClose) {
+            qDebug("wait for closeTransfer");
+            closeTransfer.wait(&mutex);
+        }
+
+        TRY("release interface", libusb_release_interface(this->dev_handle, 0));
+        libusb_close(this->dev_handle);
+        libusb_exit(this->context);
+        exit_nanomsg();
+
+        qDebug("end run()\ntotal missing: %ld", missingCount);
     }
-    qDebug("read isClose");
-    lock.lock();
-    bool isClose = this->isCloseTransfer;
-    lock.unlock();
-
-    if (!isClose) {
-        qDebug("wait for closeTransfer");
-        closeTransfer.wait(&mutex);
-    }
-
-    TRY("release interface", libusb_release_interface(this->dev_handle, 0));
-    libusb_close(this->dev_handle);
-    libusb_exit(this->context);
-    exit_nanomsg();
-
-    qDebug("end run()\ntotal missing: %ld", missingCount);
 }
 
 int UsbThread::getFirmwareId(QString product, QString manufacturer)

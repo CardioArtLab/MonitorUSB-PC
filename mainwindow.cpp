@@ -58,7 +58,7 @@ void MainWindow::addTreeChild(QTreeWidgetItem *parent, QString name, QString des
     QTreeWidgetItem *treeItem = new QTreeWidgetItem();
     treeItem->setText(0, name);
     treeItem->setText(1, description);
-    //treeItem->setData(2, Qt::UserRole, userData);
+    treeItem->setData(0, Qt::UserRole, userData);
     parent->addChild(treeItem);
 }
 
@@ -105,6 +105,8 @@ void MainWindow::clickDeviceAction(QTreeWidgetItem* item)
     */
     GraphWidget *child = new GraphWidget(this);
     ui->mdiArea->addSubWindow(child);
+    UsbDeviceDesc description = item->data(0, Qt::UserRole).value<UsbDeviceDesc>();
+    child->setWindowTitle(description.hashName());
     child->showFullScreen();
 }
 

@@ -15,8 +15,12 @@ public:
     explicit GraphWidget(QWidget *parent = 0);
     ~GraphWidget();
 
+public slots:
+    void realtimeDataSlot();
+
 private:
     Ui::GraphWidget *ui;
+    QTimer *timer;
 };
 
 #endif // GRAPHWIDGET_H
