@@ -12,29 +12,29 @@ TARGET = usb_viewer
 TEMPLATE = app
 
 
-SOURCES += main.cpp\
-        mainwindow.cpp \
-    usb_service.cpp \
-    usb_thread.cpp \
-    qcustomplot.cpp \
-    graphwidget.cpp
+SOURCES += src/main.cpp\
+    src/mainwindow.cpp \
+    src/usb_service.cpp \
+    src/usb_thread.cpp \
+    src/qcustomplot.cpp \
+    src/graphwidget.cpp
 
-HEADERS  += mainwindow.h \
-    version.h \
-    usb_service.h \
-    usb_thread.h \
-    firmware.h \
-    qcustomplot.h \
-    graphwidget.h
+HEADERS  += src/mainwindow.h \
+    src/version.h \
+    src/usb_service.h \
+    src/usb_thread.h \
+    src/firmware.h \
+    src/qcustomplot.h \
+    src/graphwidget.h
 
-FORMS    += mainwindow.ui \
-    graphwidget.ui
+FORMS    += src/mainwindow.ui \
+    src/graphwidget.ui
 
-win32:CONFIG(release, debug|release): LIBS += -LC:/Lib/libusb-1.0.20/MinGW32/dll/ -LC:/Lib/share/lib/ -llibusb-1.0.dll -llibnanomsg.dll
-else:win32:CONFIG(debug, debug|release): LIBS += -LC:/Lib/libusb-1.0.20/MinGW32/dll/ -LC:/Lib/share/lib/ -llibusb-1.0.dll -llibnanomsg.dll
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/libs/libusb-1.0.21/MinGW32/static -llibusb-1.0
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/libs/libusb-1.0.21/MinGW32/static -llibusb-1.0
 
-INCLUDEPATH += C:/Lib/libusb-1.0.20/include/libusb-1.0 C:/Lib/share/include
-DEPENDPATH += C:/Lib/libusb-1.0.20/include/libusb-1.0 C:/Lib/share/include
+INCLUDEPATH += libs/libusb-1.0.21/libusb/include/libusb-1.0
+DEPENDPATH += libs/libusb-1.0.21/libusb/include/libusb-1.0
 
 RESOURCES += \
-    main.qrc
+    src/main.qrc

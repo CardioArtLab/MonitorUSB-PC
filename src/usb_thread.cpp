@@ -116,7 +116,7 @@ void UsbThread::run()
 
         TRY("claim interface", libusb_claim_interface(this->dev_handle, 0));
         TRY("init transfer", initTransfer(EP_ADDRESS));
-        initNanomsg();
+
         forever {
             bool stop = false;
             lock.lock();
@@ -139,7 +139,6 @@ void UsbThread::run()
         TRY("release interface", libusb_release_interface(this->dev_handle, 0));
         libusb_close(this->dev_handle);
         libusb_exit(this->context);
-        exit_nanomsg();
 
         qDebug("end run()\ntotal missing: %ld", missingCount);
     }
@@ -230,24 +229,6 @@ int UsbThread::initTransfer(uint8_t endpoint)
     return ret_err;
 }
 
-int UsbThread::initNanomsg()
-{
-    nanoSock = nn_socket(AF_SP, NN_PUB);
-    Q_ASSERT( nanoSock >= 0 );
-    QString url = QString("ipc:///tmp/%1.ipc").arg(channelName);
-    char *name = url.toLocal8Bit().data();
-    nanoEndpoint = nn_bind(nanoSock, name);
-    Q_ASSERT( nanoEndpoint >= 0 );
-
-    return 0;
-}
-
-void UsbThread::exit_nanomsg()
-{
-    Q_ASSERT( nn_shutdown(nanoSock, nanoEndpoint) >= 0 );
-    Q_ASSERT( nn_close(nanoSock) >= 0 );
-}
-
 void UsbThread::callback_transfer(struct libusb_transfer *xfr)
 {
     // stop condition
@@ -270,34 +251,29 @@ void UsbThread::callback_transfer(struct libusb_transfer *xfr)
 
     // read USB
     uint8_t *packet = xfr->buffer;
-    int bytes;
     switch(FIRMWARE_ID)
     {
     case FIRMWARE_CA_TEST:
         Q_ASSERT( xfr->actual_length >= 2 );
-        bytes = nn_send(nanoSock, packet, 2, NN_DONTWAIT);
-        if (bytes < 0 && nn_errno() == EAGAIN) missingCount++;
 
         break;
     case FIRMWARE_CA_PULSE_OXIMETER:
 
         Q_ASSERT( xfr->actual_length >= 6);
         {
-            int64_t *data = (int64_t*)nn_allocmsg(sizeof(uint64_t)*2, 0);
+            int64_t data[2];
             data[0] = (packet[0] << 16) & 0xFF0000;
             data[0] += (packet[1] << 8) & 0x00FF00;
             data[0] += (packet[2] & 0x0000FF);
             data[1] = (packet[3] << 16) & 0xFF0000;
             data[1] += (packet[4] << 8) & 0x00FF00;
             data[1] += (packet[5] & 0x0000FF);
-            bytes = nn_send(nanoSock, data, NN_MSG, NN_DONTWAIT);
-            if (bytes < 0 && nn_errno() == EAGAIN) missingCount++;
         }
         break;
     case FIRMWARE_CA_ECG_MONITOR:
         Q_ASSERT( xfr->actual_length >= 27 );
         {
-            int64_t *data = (int64_t*)nn_allocmsg(sizeof(uint64_t)*12, 0);
+            int64_t data[12];
             /**
               *  9 Block of 3 bytes diagram
               * Block /Byte 1 2 3
@@ -358,8 +334,6 @@ void UsbThread::callback_transfer(struct libusb_transfer *xfr)
             // aVF
             data[5] = data[1] - data[0]/2;
             //BUG: HERE
-            bytes = nn_send(nanoSock, &data, NN_MSG, NN_DONTWAIT);
-            if (bytes < 0 || nn_errno() == EAGAIN) missingCount++;
        }
        break;
     default:

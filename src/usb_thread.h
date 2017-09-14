@@ -7,8 +7,6 @@
 
 extern "C" {
 #include "libusb.h"
-#include "nanomsg/nn.h"
-#include "nanomsg/pubsub.h"
 }
 
 #include "usb_service.h"
@@ -50,10 +48,7 @@ private:
     bool openHandle(const UsbDeviceDesc desc);
     int getFirmwareId(QString strProduct, QString strManufacturer);
     int initTransfer(uint8_t endpoint);
-    int initNanomsg();
 
-    int nanoSock;
-    int nanoEndpoint;
     int FIRMWARE_ID;
     int EP_SIZE;
     int extraIndex;
