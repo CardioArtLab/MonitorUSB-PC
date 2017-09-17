@@ -6,7 +6,7 @@
 #include <QWaitCondition>
 
 extern "C" {
-#include "libusb.h"
+#include <libusb.h>
 }
 
 #include "usb_service.h"
@@ -19,6 +19,8 @@ extern "C" {
     do { if (ret_err < 0) { \
     qDebug("error: %s (%s)\n", msg, libusb_error_name(ret_err));}} while(0)
 //------------------------------------------------------------------------------
+
+Q_DECLARE_METATYPE(QVector<int32_t>)
 
 class UsbThread : public QThread
 {
@@ -38,6 +40,7 @@ public slots:
 signals:
     void deviceConnected(UsbDeviceDesc);
     void deviceConnectedWithExtraId(UsbDeviceDesc, int);
+    void send(QVector<int32_t>);
     void printLogMessage(QString);
 
 protected:
@@ -46,7 +49,6 @@ protected:
 private:
     void exit_nanomsg();
     bool openHandle(const UsbDeviceDesc desc);
-    int getFirmwareId(QString strProduct, QString strManufacturer);
     int initTransfer(uint8_t endpoint);
 
     int FIRMWARE_ID;
@@ -61,7 +63,7 @@ private:
     QString channelName;
     QWaitCondition closeTransfer;
     UsbDeviceDesc usbDesc;
-    measurement_t mnt;
+    usb_firmware mnt;
     libusb_context *context = NULL;
     libusb_device_handle *dev_handle = NULL;
 };

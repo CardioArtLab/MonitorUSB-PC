@@ -34,20 +34,17 @@ QVector<UsbDeviceDesc> *UsbService::listDevices()
             emit printLogMessage(QString("libusb can not get device descriptor"));
             continue;
         }
-
-
+        // deny unkown USB device
+        if (desc.idProduct != ID_PRODUCT || desc.idVendor != ID_VENDOR) {continue;}
         // open usb handle
         r = libusb_open(dev, &handle);
         if (r < 0) {continue;}
-
         // create struct
         UsbDeviceDesc usbDesc;
-
         // get device name
         unsigned char *dev_name;
         int length;
         dev_name = (unsigned char*) malloc(255);
-
         // get product name
         length = libusb_get_string_descriptor_ascii(handle, desc.iProduct, dev_name, 255);
         usbDesc.productName = QString::fromLocal8Bit((const char*)dev_name, length);

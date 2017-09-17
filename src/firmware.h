@@ -2,6 +2,7 @@
 #define FIRMWARE_H
 
 #include <QVector>
+#include <QObject>
 //------------------------------------------------------------------------------
 // Defines
 //------------------------------------------------------------------------------
@@ -44,8 +45,8 @@
 //------------------------------------------------------------------------------
 // Type declear
 //------------------------------------------------------------------------------
-typedef struct _measurement_t {
-    int tag_id;
+typedef struct _firmware_t {
+    int id;
     QString name;
     QString unit;
     int64_t resolution;
@@ -55,6 +56,8 @@ typedef struct _measurement_t {
     QVector<QString> descriptor;
     int num_channel;
     int active;
-} measurement_t;
+} usb_firmware;
+Q_DECLARE_METATYPE(usb_firmware)
 
+usb_firmware getUsbFirmware(QString product, QString manufacturer);
 #endif // FIRMWARE_H

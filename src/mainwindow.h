@@ -8,6 +8,7 @@
 #include <QTreeWidget>
 #include <QDebug>
 #include "version.h"
+#include "firmware.h"
 #include "usb_service.h"
 #include "usb_thread.h"
 
@@ -27,7 +28,7 @@ public:
     void addTreeRoot(QString name, QString description);
     void addTreeChild(QTreeWidgetItem *parent,
                       QString name, QString description,
-                      QVariant userData);
+                      QVariant userData, QVariant index);
 
 public slots:
     void refreshDevice();

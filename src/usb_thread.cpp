@@ -59,8 +59,8 @@ bool UsbThread::openHandle(const UsbDeviceDesc desc)
         uint8_t address = libusb_get_device_address(dev);
         if (bus == desc.bus && address == desc.address)
         {
-            int fid = getFirmwareId(desc.productName, desc.developer);
-            if (fid != FIRMWARE_ERROR)
+            mnt = getUsbFirmware(desc.productName, desc.developer);
+            if (mnt.id != FIRMWARE_ERROR)
             {
                 err = libusb_open(dev, &this->dev_handle);
                 if (err < 0)
@@ -70,7 +70,7 @@ bool UsbThread::openHandle(const UsbDeviceDesc desc)
                 }
 
                 hasFound = true;
-                FIRMWARE_ID = fid;
+                FIRMWARE_ID = mnt.id;
                 EP_SIZE = libusb_get_max_packet_size(dev, EP_ADDRESS);
                 channelName = usbDesc.hashName();
                 qDebug("FIRMWARE %d (%d bytes)\n", FIRMWARE_ID, EP_SIZE);
@@ -144,64 +144,6 @@ void UsbThread::run()
     }
 }
 
-int UsbThread::getFirmwareId(QString product, QString manufacturer)
-{
-    // default fid indicating no firmware
-    int fid = FIRMWARE_ERROR;
-
-    if (product.compare(FIRMWARE_CA_ECG_MONITOR__PD, Qt::CaseInsensitive) == 0
-            && manufacturer.compare(FIRMWARE_CA_ECG_MONITOR__MF, Qt::CaseInsensitive) == 0)
-    {
-        fid = FIRMWARE_CA_ECG_MONITOR;
-        mnt.ref_min = 0;
-        mnt.ref_max = 3.3;
-        mnt.resolution = 16777216;
-        mnt.num_channel = 12;
-        mnt.name = QString("ecg");
-        mnt.unit = QString("mV");
-        mnt.descriptor.append("Lead_I");
-        mnt.descriptor.append("Lead_II");
-        mnt.descriptor.append("Lead_III");
-        mnt.descriptor.append("aVR");
-        mnt.descriptor.append("aVL");
-        mnt.descriptor.append("aVF");
-        mnt.descriptor.append("V1");
-        mnt.descriptor.append("V2");
-        mnt.descriptor.append("V3");
-        mnt.descriptor.append("V4");
-        mnt.descriptor.append("V5");
-        mnt.descriptor.append("V6");
-    }
-    else if (product.compare(FIRMWARE_CA_PULSE_OXIMETER__PD, Qt::CaseInsensitive) == 0
-             && manufacturer.compare(FIRMWARE_CA_PULSE_OXIMETER__MF, Qt::CaseInsensitive) == 0)
-    {
-        fid = FIRMWARE_CA_PULSE_OXIMETER;
-        mnt.ref_min = 0;
-        mnt.ref_max = 3.3;
-        mnt.resolution = 4194304;
-        mnt.num_channel = 2;
-        mnt.sampling_rate = 1000;
-        mnt.name = QString("oxigen_sat");
-        mnt.unit = QString("mV");
-        mnt.descriptor.append("LED1");
-        mnt.descriptor.append("LED2");
-    }
-    else if (product.compare(FIRMWARE_CA_TEST__PD, Qt::CaseInsensitive) == 0
-             && manufacturer.compare(FIRMWARE_CA_TEST__MF, Qt::CaseInsensitive) == 0)
-    {
-        fid = FIRMWARE_CA_TEST;
-        mnt.ref_min = 0;
-        mnt.ref_max = 100;
-        mnt.resolution = 100;
-        mnt.num_channel = 2;
-        mnt.name = QString("general");
-        mnt.unit = QString("celcius");
-        mnt.descriptor.append("id");
-        mnt.descriptor.append("temperature");
-    }
-    return fid;
-}
-
 int UsbThread::initTransfer(uint8_t endpoint)
 {
     int ret_err = LIBUSB_SUCCESS;
@@ -261,19 +203,23 @@ void UsbThread::callback_transfer(struct libusb_transfer *xfr)
 
         Q_ASSERT( xfr->actual_length >= 6);
         {
-            int64_t data[2];
-            data[0] = (packet[0] << 16) & 0xFF0000;
+            int32_t data[2];
+            data[0] = (packet[0] << 16) & 0x3F0000;
             data[0] += (packet[1] << 8) & 0x00FF00;
             data[0] += (packet[2] & 0x0000FF);
-            data[1] = (packet[3] << 16) & 0xFF0000;
+            data[1] = (packet[3] << 16) & 0x3F0000;
             data[1] += (packet[4] << 8) & 0x00FF00;
             data[1] += (packet[5] & 0x0000FF);
+            QVector<int32_t> _packet(2);
+            _packet[0] = ~data[0];
+            _packet[1] = ~data[1];
+            emit send(_packet);
         }
         break;
     case FIRMWARE_CA_ECG_MONITOR:
         Q_ASSERT( xfr->actual_length >= 27 );
         {
-            int64_t data[12];
+            int32_t data[12];
             /**
               *  9 Block of 3 bytes diagram
               * Block /Byte 1 2 3
@@ -334,6 +280,9 @@ void UsbThread::callback_transfer(struct libusb_transfer *xfr)
             // aVF
             data[5] = data[1] - data[0]/2;
             //BUG: HERE
+            QVector<int32_t> _packet(12);
+            std::copy_n(data, 12, std::back_inserter(_packet));
+            emit send(_packet);
        }
        break;
     default:

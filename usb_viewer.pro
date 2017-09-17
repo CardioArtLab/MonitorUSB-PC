@@ -17,7 +17,8 @@ SOURCES += src/main.cpp\
     src/usb_service.cpp \
     src/usb_thread.cpp \
     src/qcustomplot.cpp \
-    src/graphwidget.cpp
+    src/graphwidget.cpp \
+    src/firmware.cpp
 
 HEADERS  += src/mainwindow.h \
     src/version.h \
@@ -33,8 +34,8 @@ FORMS    += src/mainwindow.ui \
 win32:CONFIG(release, debug|release): LIBS += -L$$PWD/libs/libusb-1.0.21/MinGW32/static -llibusb-1.0
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/libs/libusb-1.0.21/MinGW32/static -llibusb-1.0
 
-INCLUDEPATH += libs/libusb-1.0.21/libusb/include/libusb-1.0
-DEPENDPATH += libs/libusb-1.0.21/libusb/include/libusb-1.0
+INCLUDEPATH += src libs/libusb-1.0.21/include/libusb-1.0
+DEPENDPATH += libs/libusb-1.0.21/include/libusb-1.0
 
 RESOURCES += \
     src/main.qrc

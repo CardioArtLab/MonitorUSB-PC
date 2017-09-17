@@ -20,6 +20,10 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->treeWidget, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showDevTreeMenu(QPoint)));
     connect(ui->treeWidget, SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)), this, SLOT(clickDeviceAction(QTreeWidgetItem*)));
 
+    // register type use in inter-thread communication
+    qRegisterMetaType<QVector<int32_t>>();
+
+    // refresh device
     refreshDevice();
 }
 
@@ -53,12 +57,13 @@ void MainWindow::addTreeRoot(QString name, QString description)
     treeItem->setText(1, description);
 }
 
-void MainWindow::addTreeChild(QTreeWidgetItem *parent, QString name, QString description, QVariant userData)
+void MainWindow::addTreeChild(QTreeWidgetItem *parent, QString name, QString description, QVariant userData, QVariant index)
 {
     QTreeWidgetItem *treeItem = new QTreeWidgetItem();
     treeItem->setText(0, name);
     treeItem->setText(1, description);
     treeItem->setData(0, Qt::UserRole, userData);
+    treeItem->setData(1, Qt::UserRole, index);
     parent->addChild(treeItem);
 }
 
@@ -75,14 +80,19 @@ void MainWindow::showDevTreeMenu(const QPoint &pos)
 
     // create menu
     QMenu menu;
-    int i = ui->treeWidget->currentIndex().row();
-    UsbDeviceDesc desc = devices->at(i);
-
-    if (mapDeviceThread.contains(desc.hashName())) {
-        menu.addAction("Close", this, SLOT(closeDeviceAction()));
-    } else {
-        menu.addAction("Open", this, SLOT(openDeviceAction()));
+    if (ui->treeWidget->currentIndex().isValid()) {
+        int i = ui->treeWidget->currentIndex().row();
+        if (i < devices->size()) {
+            UsbDeviceDesc desc = devices->at(i);
+            if (mapDeviceThread.contains(desc.hashName())) {
+                menu.addAction("Close", this, SLOT(closeDeviceAction()));
+            } else {
+                QString label = "Open " + desc.productName;
+                menu.addAction(label, this, SLOT(openDeviceAction()));
+            }
+        }
     }
+    menu.addAction("Refresh", this, SLOT(refreshDevice()));
     menu.exec(globalPos);
 }
 
@@ -93,21 +103,30 @@ void MainWindow::showDevTreeMenu(const QPoint &pos)
  */
 void MainWindow::clickDeviceAction(QTreeWidgetItem* item)
 {
-    /*
     if(item->parent()) {
-        //TODO: plot graph
-        UsbGraphWidget *child = new UsbGraphWidget();
+        // extract user data to usb device description
+        UsbDeviceDesc description = item->data(0, Qt::UserRole).value<UsbDeviceDesc>();
+        int index = item->data(1, Qt::UserRole).toInt();
+        // get firmware from device description
+        usb_firmware firmware = getUsbFirmware(description.productName, description.developer);
+        // create graph widget
+        GraphWidget *child = new GraphWidget(firmware, index, this);
         ui->mdiArea->addSubWindow(child);
-        //ui->mdiArea->setActiveSubWindow();
+        // connect signal from thread to widget
+        UsbThread* thread = mapDeviceThread[description.hashName()];
+        connect(thread, SIGNAL(send(QVector<int32_t>)), child, SLOT(recieve(QVector<int32_t>)));
+        child->setWindowTitle(
+            QString("%1 %2 [id:%3][channel:%4]")
+                .arg(description.productName)
+                .arg(firmware.descriptor.at(index))
+                .arg(description.hashName())
+                .arg(index)
+        );
+        child->showFullScreen();
     }
-    else
+    else {
         openDeviceAction();
-    */
-    GraphWidget *child = new GraphWidget(this);
-    ui->mdiArea->addSubWindow(child);
-    UsbDeviceDesc description = item->data(0, Qt::UserRole).value<UsbDeviceDesc>();
-    child->setWindowTitle(description.hashName());
-    child->showFullScreen();
+    }
 }
 
 void MainWindow::openDeviceAction()
@@ -180,10 +199,16 @@ void MainWindow::closeDeviceAction()
 
 void MainWindow::addSubDeviceTree(UsbDeviceDesc description, int extraId)
 {
+    // get parant item
     QTreeWidgetItem *item = ui->treeWidget->topLevelItem(extraId);
-    QVariant var;
-    var.setValue(description);
-    addTreeChild(item, "Plot Graph", "", var);
+    // prepare usb device description to save at each child
+    QVariant var = QVariant::fromValue(description);
+    // get firmare and channel list
+    usb_firmware firmware = getUsbFirmware(description.productName, description.developer);
+    // add channel as a child
+    for (int i=0; i<firmware.num_channel; i++) {
+        addTreeChild(item, firmware.descriptor.at(i), firmware.unit, var, QVariant(i));
+    }
     ui->treeWidget->expandItem(item);
 }
 

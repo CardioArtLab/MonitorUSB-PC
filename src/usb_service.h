@@ -4,9 +4,12 @@
 #include <QVector>
 #include <QString>
 #include <QObject>
+
 extern "C" {
-#include "libusb.h"
+#include <libusb.h>
 }
+
+#include "firmware.h"
 
 class UsbDeviceDesc
 {
