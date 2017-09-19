@@ -10,7 +10,7 @@ usb_firmware getUsbFirmware(QString product, QString manufacturer)
     {
         mnt.id = FIRMWARE_CA_ECG_MONITOR;
         mnt.ref_min = 0;
-        mnt.ref_max = 3.3;
+        mnt.ref_max = 33;
         mnt.resolution = 16777216;
         mnt.num_channel = 12;
         mnt.name = QString("ecg");
@@ -33,14 +33,14 @@ usb_firmware getUsbFirmware(QString product, QString manufacturer)
     {
         mnt.id = FIRMWARE_CA_PULSE_OXIMETER;
         mnt.ref_min = 0;
-        mnt.ref_max = 3.3;
+        mnt.ref_max = 33;
         mnt.resolution = 4194304;
         mnt.num_channel = 2;
         mnt.sampling_rate = 1000;
         mnt.name = QString("oxigen_sat");
         mnt.unit = QString("mV");
-        mnt.descriptor.append("LED1");
-        mnt.descriptor.append("LED2");
+        mnt.descriptor.append("LED1 (IR)");
+        mnt.descriptor.append("LED2 (RED)");
     }
     else if (product.compare(FIRMWARE_CA_TEST__PD, Qt::CaseInsensitive) == 0
              && manufacturer.compare(FIRMWARE_CA_TEST__MF, Qt::CaseInsensitive) == 0)

@@ -33,6 +33,13 @@ MainWindow::MainWindow(QWidget *parent) :
  */
 void MainWindow::refreshDevice()
 {
+    // clear working usbthread
+    QMapIterator<QString, UsbThread*> i(mapDeviceThread);
+    while (i.hasNext()) {
+        i.next();
+        delete i.value();
+    }
+    mapDeviceThread.clear();
     // query usb from service
     devices = usbService->listDevices();
     ui->statusTextbox->appendPlainText(QString::asprintf("Found %d USB Devices", devices->length()));
@@ -81,14 +88,27 @@ void MainWindow::showDevTreeMenu(const QPoint &pos)
     // create menu
     QMenu menu;
     if (ui->treeWidget->currentIndex().isValid()) {
-        int i = ui->treeWidget->currentIndex().row();
-        if (i < devices->size()) {
-            UsbDeviceDesc desc = devices->at(i);
-            if (mapDeviceThread.contains(desc.hashName())) {
-                menu.addAction("Close", this, SLOT(closeDeviceAction()));
-            } else {
-                QString label = "Open " + desc.productName;
-                menu.addAction(label, this, SLOT(openDeviceAction()));
+        QTreeWidgetItem *item = ui->treeWidget->currentItem();
+        if(!ui->treeWidget->currentItem()->parent()) {
+            int i = ui->treeWidget->currentIndex().row();
+            if (i < devices->size()) {
+                UsbDeviceDesc desc = devices->at(i);
+                if (mapDeviceThread.contains(desc.hashName())) {
+                    menu.addAction("Close", this, SLOT(closeDeviceAction()));
+                } else {
+                    QString label = "Open " + desc.productName;
+                    menu.addAction(label, this, SLOT(openDeviceAction()));
+                }
+            }
+        } else {
+            // Custom channel
+            // extract user data to usb device description
+            UsbDeviceDesc description = item->data(0, Qt::UserRole).value<UsbDeviceDesc>();
+            // get firmware from device description
+            usb_firmware firmware = getUsbFirmware(description.productName, description.developer);
+            if (firmware.id == FIRMWARE_CA_PULSE_OXIMETER) {
+                menu.addAction("SPO2", this, SLOT(refreshDevice()));
+                menu.addAction("Hearth Rate", this, SLOT(refreshDevice()));
             }
         }
     }
@@ -146,7 +166,7 @@ void MainWindow::openDeviceAction()
     msgBox.setWindowTitle("Open USB Device");
     msgBox.setText("Do you want to open this device?");
     msgBox.setStandardButtons(QMessageBox::Open | QMessageBox::Cancel);
-    msgBox.setDefaultButton(QMessageBox::Cancel);
+    msgBox.setDefaultButton(QMessageBox::Close);
     int ret = msgBox.exec();
 
     // deny all return except open returned id
@@ -173,7 +193,7 @@ void MainWindow::closeDeviceAction()
     msgBox.setWindowTitle("Close working device");
     msgBox.setText("Do you want to close?");
     msgBox.setStandardButtons(QMessageBox::Close | QMessageBox::Cancel);
-    msgBox.setDefaultButton(QMessageBox::Cancel);
+    msgBox.setDefaultButton(QMessageBox::Close);
     int ret = msgBox.exec();
 
     // deny all return except open returned id
@@ -190,10 +210,11 @@ void MainWindow::closeDeviceAction()
                 .arg(name));
     QTreeWidgetItem *item = ui->treeWidget->currentItem();
     int length = item->childCount();
-    for (int i=0; i < length ; i++)
+    for (int i=length-1; i >= 0 ; i--)
     {
         delete item->child(i);
     }
+    delete mapDeviceThread[desc.hashName()];
     mapDeviceThread.remove(desc.hashName());
 }
 

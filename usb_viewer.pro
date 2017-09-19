@@ -12,21 +12,26 @@ TARGET = usb_viewer
 TEMPLATE = app
 
 
-SOURCES += src/main.cpp\
+SOURCES += src/firmware.cpp \
+    src/graphwidget.cpp \
+    src/main.cpp \
     src/mainwindow.cpp \
+    src/qcustomplot.cpp \
     src/usb_service.cpp \
     src/usb_thread.cpp \
-    src/qcustomplot.cpp \
-    src/graphwidget.cpp \
-    src/firmware.cpp
+    src/filter/pulseoximterfilter.cpp \
+    src/filter/spo2filter.cpp
 
-HEADERS  += src/mainwindow.h \
-    src/version.h \
+HEADERS  += src/firmware.h \
+    src/graphwidget.h \
+    src/mainwindow.h \
+    src/qcustomplot.h \
     src/usb_service.h \
     src/usb_thread.h \
-    src/firmware.h \
-    src/qcustomplot.h \
-    src/graphwidget.h
+    src/version.h \
+    src/filter/basefilter.h \
+    src/filter/pulseoximterfilter.h \
+    src/filter/spo2filter.h
 
 FORMS    += src/mainwindow.ui \
     src/graphwidget.ui

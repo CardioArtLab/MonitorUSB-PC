@@ -7,12 +7,15 @@ GraphWidget::GraphWidget(usb_firmware _firmware, int _channel, QWidget *parent) 
 {
     ui->setupUi(this);
 
-    // static time
+    // initial variables
     static QTime _time(QTime::currentTime());
     time = _time;
-    // calculate data converting factor from firmware
     firmware = _firmware;
     channelIndex = _channel;
+    if (firmware.id == FIRMWARE_CA_PULSE_OXIMETER) {
+        filter = new PulseoximterFilter();
+    }
+    // calculate data converting factor from firmware
     convertingFactor = double(firmware.ref_max - firmware.ref_min) / (firmware.resolution - 1);
 
     // graph setups
@@ -61,20 +64,24 @@ void GraphWidget::recieve(QVector<int32_t> packet)
         close();
     }
     double key = time.elapsed()/1000.0; // in seconds
-    double value = packet.at(channelIndex);
-    // decode two complement
-    if (value >= firmware.resolution / 2) {
-        value -= firmware.resolution;
-    }
-    // convert from bit value to voltage value
-    value = (value + (firmware.resolution / 2)) * convertingFactor + firmware.ref_min;
-    ui->customPlot->graph(0)->addData(key, value);
-
-    if (!isRecord) return;
-    DataPoint point = {key, value};
-    recordData.append(point);
-    while (key - recordData.front().time > secRecordTimeRange) {
-        recordData.removeFirst();
+    if (key > lastPointKey) {
+        double value = packet.at(channelIndex);
+        // decode two complement
+        if (value >= firmware.resolution / 2) {
+            value -= firmware.resolution;
+        }
+        // convert from bit value to voltage value
+        value = (value + (firmware.resolution / 2)) * convertingFactor + firmware.ref_min;
+        value = filter->calculate(key, value);
+        ui->customPlot->graph(0)->addData(key, value);
+        // record to buffer
+        if (!isRecord) return;
+        DataPoint point = {key, value};
+        recordData.append(point);
+        while (key - recordData.front().time > secRecordTimeRange) {
+            recordData.removeFirst();
+        }
+        lastPointKey = key;
     }
 }
 
@@ -92,7 +99,7 @@ void GraphWidget::realtimeDataSlot()
         lastPointKey = key;
     }
 
-    if (key-lastRemoveTime > 0.33) {
+    if (key-lastRenderTime > 0.33) {
         // remove older than 10 seconds data
         ui->customPlot->graph(0)->data()->removeBefore(key-secTimeRange);
         lastRemoveTime = key;

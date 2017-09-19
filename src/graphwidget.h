@@ -6,6 +6,8 @@
 #include <QLinkedList>
 #include <QTime>
 #include "firmware.h"
+#include "filter/pulseoximterfilter.h"
+#include "filter/spo2filter.h"
 
 namespace Ui {
 class GraphWidget;
@@ -34,12 +36,13 @@ public slots:
     void recieve(QVector<int32_t>);
     void realtimeDataSlot();
 
-private:
+protected:
     bool isStop = false;
     bool isRecord = false;
     bool isRecordFull = false;
     int channelIndex;
     double lastPointKey = 0;
+    double lastRenderTime = 0;
     double lastRemoveTime = 0;
     double convertingFactor = 1;
     uint32_t secTimeRange = 10;
@@ -52,7 +55,7 @@ private:
     QTime time;
     QTimer *timer;
     Ui::GraphWidget *ui;
-
+    BaseFilter *filter;
 };
 
 #endif // GRAPHWIDGET_H

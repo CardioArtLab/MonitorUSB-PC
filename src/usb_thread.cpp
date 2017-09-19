@@ -13,11 +13,9 @@ UsbThread::UsbThread(QObject *parent) : QThread(parent)
 
 UsbThread::~UsbThread()
 {
-    qDebug("start close()");
     close();
-    qDebug("start wait()");
     wait();
-    qDebug("~UsbThread()");
+    //qDebug("~UsbThread()");
 }
 
 /*!
@@ -126,7 +124,7 @@ void UsbThread::run()
             if (stop) break;
             libusb_handle_events_timeout(this->context, &timeout);
         }
-        qDebug("read isClose");
+        //qDebug("read isClose");
         lock.lock();
         bool isClose = this->isCloseTransfer;
         lock.unlock();
@@ -140,7 +138,7 @@ void UsbThread::run()
         libusb_close(this->dev_handle);
         libusb_exit(this->context);
 
-        qDebug("end run()\ntotal missing: %ld", missingCount);
+        qDebug("END USB THREAD: total missing %ld requests", missingCount);
     }
 }
 
