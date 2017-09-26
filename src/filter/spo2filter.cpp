@@ -3,73 +3,148 @@
 
 SpO2Filter::SpO2Filter():PulseoximterFilter()
 {
-    for(int i=0; i<999; i++) {
-        dc.append(0);
+    for(int i=0; i<99; i++) {
+        x.append(0);
+    }
+    for(int i=0; i<600;i++) {
         y.append(0);
+        t.append(0);
     }
 }
 
 double SpO2Filter::calculate(double time, double value)
 {
-    double *t = tdata;
     // store y data in linklist
     value = PulseoximterFilter::calculate(time, value);
-    y.append(value);
-    y.removeFirst();
+    x.append(value);
+    x.removeFirst();
     // CIC filter
-    double newDc = 0.001 * (y.last() - y.front()) + dc.last();
-    double Dc = dc.last();
-    dc.append(newDc);
-    QLinkedList<double>::const_iterator iterY = y.end();
-    double Yprev = *(iterY-3), Y = *(iterY-2), Ynext = *(iterY-1);
-    //qDebug("%f %f %f %f", Yprev, Y, Ynext, Dc);
+    double newY = 0.01 * (x.last() - x.front()) + y.last();
+    // add new value to vector
+    value = newY;
+    y.append(newY);
+    y.removeFirst();
+    t.append(time);
+    t.removeFirst();
+    // calculate local maximum, minimum
+    int mid = y.length()/2, last = y.length();
+    double Y = y.at(mid);
+    double T = t.at(mid);
+    double prevYMin = y.first(), nextYMin = y.last();
+    double prevYMax = y.first(), nextYMax = y.last();
+
+    for (int i=1; i<mid; i++) {
+        if (prevYMin > y[i]) prevYMin = y[i];
+        if (prevYMax < y[i]) prevYMax = y[i];
+    }
+    for (int i=mid+1; i<last; i++) {
+        if (nextYMin > y[i]) nextYMin = y[i];
+    }
+    for (int i=mid+1; i<mid+100 && i<last; i++) {
+        if (nextYMax < y[i]) nextYMax = y[i];
+    }
+
     // peak detection algorithm
     // minimum peak detection
-    if (Yprev >= Y && Ynext > Y) {
-        //qDebug("min noise? %f", t[3] - tmpTmin);
-        if (t[3] - tmpTmin > SEC_THRESHOLD_DURATION) {
+    if (prevYMin >= Y && nextYMin > Y) {
+        //qDebug("min noise? %f", t[2] - tmpTmin);
+        if (T - tmpTmin > SEC_THRESHOLD_DURATION) {
             isNoise = false;
         } else {
             isNoise = true;
         }
-        if (Dc >= Y && !isNoise && !maxFound) {
+        if (!isNoise && !maxFound) {
             //qDebug("found min");
-            ROLLUP(Tmin, 3);
-            ROLLUP(Vmin, 3);
-            Tmin[3] = t[3];
-            Vmin[3] = Y;
+            Tmin[LENGTH_ARRAY_RATIO - 1] = T;
+            Vmin[LENGTH_ARRAY_RATIO - 1] = Y;
             minFound = true;
         }
-        tmpTmin = t[3];
+        tmpTmin = T;
     }
     // maximum peak detection
-    if (Y >= Yprev && Y > Ynext) {
-        //qDebug("max noise? %f", t[3] - tmpTmin);
-        if (t[3] - tmpTmax > SEC_THRESHOLD_DURATION) {
+    if (Y >= prevYMax && Y > nextYMax) {
+        //qDebug("max noise? %f", t[2] - tmpTmax);
+        if (T - tmpTmax > SEC_THRESHOLD_DURATION) {
             isNoise = false;
         } else {
             isNoise = true;
         }
-        if (Y >= Dc && !isNoise && minFound) {
-            //qDebug("found max");
-            ROLLUP(Tmax, 3);
-            ROLLUP(Vmax, 3);
-            Tmax[3] = t[3];
-            Vmax[3] = Y;
+        if (!isNoise && minFound) {
+            Tmax[LENGTH_ARRAY_RATIO - 1] = T;
+            Vmax[LENGTH_ARRAY_RATIO - 1] = Y;
             maxFound = true;
         }
-        tmpTmax = t[3];
+        tmpTmax = T;
     }
-    // R cal
+
     if (maxFound && minFound) {
-        //qDebug("min (%f %f) max (%f %f)", Tmin[3], Vmin[3], Tmax[3], Vmax[3]);
-        if (Vmax[3] - Vmin[3] > 0.1*rr) {
-            // calculate for ratio of ratio
-            rr = 0.3*rr + 0.7*(Vmax[3] - Vmin[3]);
-            // corrected the Vmax Vmin value
+        double Vrange = Vmax[LENGTH_ARRAY_RATIO - 1] - Vmin[LENGTH_ARRAY_RATIO - 1];
+        if (Vrange > 0.01) {
+            for (int i=0; i<LENGTH_ARRAY_RATIO - 1; i++) {
+                Tmax[i] = Tmax[i+1];
+                Vmax[i] = Vmax[i+1];
+                Vmin[i] = Vmin[i+1];
+                Tmin[i] = Tmin[i+1];
+            }
         }
+        lastTmpTmin = tmpTmin;
         minFound = false;
         maxFound = false;
     }
+    if (minFound && !maxFound && tmpTmin - lastTmpTmin > 100 * SEC_THRESHOLD_DURATION) {
+        lastTmpTmin = tmpTmin;
+        minFound = false;
+    }
     return value;
+}
+
+bool SpO2Filter::isReadyToRead()
+{
+    if (tmpTmin - Tmin[LENGTH_ARRAY_RATIO - 2] > 5) return false;
+    for (int i=0; i<(LENGTH_ARRAY_RATIO - 2); i++) {
+        if (Tmax[i] == 0) return false;
+        if (Tmin[i] == 0) return false;
+        if (Tmax[i+1] - Tmax[i] > 2) return false;
+        if (Tmin[i+1] - Tmin[i] > 2) return false;
+    }
+    return true;
+}
+
+int SpO2Filter::getSaturationType()
+{
+    if (isReadyToRead()) {
+        const int index = LENGTH_ARRAY_RATIO - 2;
+        if (Vmax[index-2] - Vmax[index-1] >= 0.05 && Vmax[index-1] - Vmax[index] >= 0.05)
+            return SATURATION_DECREASE;
+        if (Vmin[index-1] - Vmin[index-2] >= 0.05 && Vmin[index] - Vmin[index-1] >= 0.05)
+            return SATURATION_INCREASE;
+    }
+    return SATURATION_STEADY_STATE;
+}
+
+double SpO2Filter::getRatio(int saturationType)
+{
+    if (!isReadyToRead()) return 0;
+    const int index = LENGTH_ARRAY_RATIO - 2;
+    if (saturationType == SATURATION_INCREASE) {
+        double correctedVmin = Vmax[index-2] + (Vmax[index-1] - Vmax[index-2])*(Tmin[index-1]-Tmax[index-2])/(Tmax[index-1]-Tmax[index-2]);
+        return Vmin[index-1] / correctedVmin;
+    }
+
+    if (saturationType == SATURATION_DECREASE) {
+        double correctedVmax = Vmin[index-1] + (Vmin[index-1] - Vmin[index])*(Tmin[index-1]-Tmax[index-1])/(Tmin[index]-Tmin[index-1]);
+        return correctedVmax / Vmax[index-1];
+    }
+
+    // otherwise stready state case
+    return Vmin[index-1] / Vmax[index-1];
+}
+
+double SpO2Filter::getHearthRate() {
+    if (!isReadyToRead()) return 0;
+    double secDuration = 0;
+    for (int i=LENGTH_ARRAY_RATIO - 2; i>0; i--) {
+        secDuration += (Tmax[i] - Tmax[i-1]);
+    }
+    return 60 * secDuration/(LENGTH_ARRAY_RATIO-2);
 }

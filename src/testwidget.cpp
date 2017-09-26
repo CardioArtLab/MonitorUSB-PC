@@ -1,9 +1,9 @@
-#include "graphwidget.h"
-#include "ui_graphwidget.h"
+#include "testwidget.h"
+#include "ui_testwidget.h"
 
-GraphWidget::GraphWidget(usb_firmware _firmware, int _channel, QWidget *parent) :
+TestWidget::TestWidget(usb_firmware _firmware, int _channel, QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::GraphWidget)
+    ui(new Ui::TestWidget)
 {
     ui->setupUi(this);
 
@@ -12,9 +12,7 @@ GraphWidget::GraphWidget(usb_firmware _firmware, int _channel, QWidget *parent) 
     time = _time;
     firmware = _firmware;
     channelIndex = _channel;
-    if (firmware.id == FIRMWARE_CA_PULSE_OXIMETER) {
-        spO2filter = new SpO2Filter();
-    }
+
     // calculate data converting factor from firmware
     convertingFactor = double(firmware.ref_max - firmware.ref_min) / (firmware.resolution - 1);
 
@@ -61,75 +59,60 @@ GraphWidget::GraphWidget(usb_firmware _firmware, int _channel, QWidget *parent) 
     timer->start(0);
 }
 
-void GraphWidget::recieve(QVector<int32_t> packet)
+void TestWidget::recieve(QVector<int32_t> packet)
 {
     if (isStop) return;
-    if (channelIndex > packet.length()) {
-        QMessageBox msgBox;
-        msgBox.setWindowTitle("Open USB Device");
-        msgBox.setText("Do you want to open this device?");
-        msgBox.setStandardButtons(QMessageBox::Close);
-        msgBox.exec();
-        close();
-    }
     double key = time.elapsed()/1000.0; // in seconds
     if (key > lastPointKey) {
-        double value = packet.at(channelIndex);
-        // decode two complement
-        if (value >= firmware.resolution / 2) {
-            value -= firmware.resolution;
-        }
-        // convert from bit value to voltage value
-        value = (value + (firmware.resolution / 2)) * convertingFactor + firmware.ref_min;
-        if (firmware.id == FIRMWARE_CA_PULSE_OXIMETER) {
-            value = spO2filter->calculate(key, value);
-            ui->customPlot->graph(0)->addData(key, value);
-
-            bool updated = false;
-            if (Tmax != spO2filter->Tmax[9] ||
-                Tmin != spO2filter->Tmin[9] ||
-                Vmax != spO2filter->Vmax[9] ||
-                Vmin != spO2filter->Vmin[9]
-            ) {
-                Tmax = spO2filter->Tmax[9];
-                Tmin = spO2filter->Tmin[9];
-                Vmax = spO2filter->Vmax[9];
-                Vmin = spO2filter->Vmin[9];
-                updated = true;
+        int size = packet.size();
+        double values[size];
+        for (int i=0; i<size; i++) {
+            values[i] = packet.at(i);
+            // decode two complement
+            if (values[i] >= firmware.resolution / 2) {
+                values[i] -= firmware.resolution;
             }
-            if (updated) {
-                ui->customPlot->graph(1)->addData(Tmin, Vmin);
-                ui->customPlot->graph(1)->addData(Tmax, Vmax);
+            // convert from bit value to voltage value
+            values[i] = (values[i] + (firmware.resolution / 2)) * convertingFactor + firmware.ref_min;
+            values[i] = filter[i].calculate(key, values[i]);
+        }
+        double value = 0;
+        if (firmware.id == FIRMWARE_CA_PULSE_OXIMETER) {
+            if (channelIndex == CUSTOM_CHANNEL_SPO2_PERCENT) {
+                int type = filter[1].getSaturationType();
+                value = log(filter[1].getRatio(type)) / log(filter[0].getRatio(type));
+                ui->customPlot->graph(1)->addData(key, value);
+            }
+            else if (channelIndex == CUSTOM_CHANNEL_SPO2_HR) {
+                value = filter[1].getHearthRate();
+                ui->customPlot->graph(1)->addData(key, value);
             }
         }
         // record to buffer
         if (!isRecord) return;
         DataPoint point = {key, value};
         recordData.append(point);
-        while (key - recordData.front().time > secRecordTimeRange) {
-            recordData.removeFirst();
-        }
         lastPointKey = key;
     }
 }
 
-void GraphWidget::realtimeDataSlot()
+void TestWidget::realtimeDataSlot()
 {
     if (isStop) return;
 
     double key = time.elapsed()/1000.0; // in seconds
 
-    if (key-lastRenderTime > 0.1) {
+    if (key-lastPointKey > 0.1) {
         // render graph every 100 ms
-        ui->customPlot->graph(0)->rescaleValueAxis();
+        ui->customPlot->graph(1)->rescaleValueAxis();
         ui->customPlot->xAxis->setRange(key, secTimeRange, Qt::AlignRight);
         ui->customPlot->replot();
-        lastRenderTime = key;
+        lastPointKey = key;
     }
 
-    if (key-lastRemoveTime > 0.33) {
+    if (key-lastRenderTime > 0.33) {
         // remove older than 10 seconds data
-        ui->customPlot->graph(0)->data()->removeBefore(key-secTimeRange);
+        ui->customPlot->graph(1)->data()->removeBefore(key-secTimeRange);
         lastRemoveTime = key;
     }
 
@@ -139,10 +122,13 @@ void GraphWidget::realtimeDataSlot()
             ui->recordButton->setStyleSheet("background-color: green");
             isRecordFull = true;
         }
+        while (key - recordData.front().time > secRecordTimeRange) {
+            recordData.removeFirst();
+        }
     }
 }
 
-void GraphWidget::onClickStopButton()
+void TestWidget::onClickStopButton()
 {
     isStop = !isStop;
     if (isStop) {
@@ -152,7 +138,7 @@ void GraphWidget::onClickStopButton()
     }
 }
 
-void GraphWidget::onClickSaveButton()
+void TestWidget::onClickSaveButton()
 {
     QString filename = QFileDialog::getSaveFileName(this, tr("Save data file"), "", tr("CSV (*.csv);;All files (*)"));
     if (filename.isEmpty()) {
@@ -177,25 +163,26 @@ void GraphWidget::onClickSaveButton()
     }
 }
 
-void GraphWidget::onChangeTimeRange(int value)
+void TestWidget::onChangeTimeRange(int value)
 {
     secTimeRange = value;
 }
 
-void GraphWidget::onChangeRecordTimeRange(int value)
+void TestWidget::onChangeRecordTimeRange(int value)
 {
     secRecordTimeRange = value;
 }
 
-void GraphWidget::onToggleRecordMode(bool isEnabled)
+void TestWidget::onToggleRecordMode(bool isEnabled)
 {
     isRecord = isEnabled;
     ui->recordSpinBox->setEnabled(isEnabled);
     ui->recordButton->setEnabled(isEnabled);
 }
 
-GraphWidget::~GraphWidget()
+TestWidget::~TestWidget()
 {
+
     timer->stop();
     delete timer;
     delete ui;

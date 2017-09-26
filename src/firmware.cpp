@@ -1,5 +1,10 @@
 #include "firmware.h"
 
+QString CUSTOM_CHANNEL[] = {
+    "SPO2",
+    "Hearth Rate"
+};
+
 usb_firmware getUsbFirmware(QString product, QString manufacturer)
 {
     usb_firmware mnt;

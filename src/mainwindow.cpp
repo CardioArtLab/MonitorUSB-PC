@@ -1,7 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
@@ -40,6 +39,8 @@ void MainWindow::refreshDevice()
         delete i.value();
     }
     mapDeviceThread.clear();
+    mapCustomChannelDescription.clear();
+    mapCustomChannelType.clear();
     // query usb from service
     devices = usbService->listDevices();
     ui->statusTextbox->appendPlainText(QString::asprintf("Found %d USB Devices", devices->length()));
@@ -107,8 +108,22 @@ void MainWindow::showDevTreeMenu(const QPoint &pos)
             // get firmware from device description
             usb_firmware firmware = getUsbFirmware(description.productName, description.developer);
             if (firmware.id == FIRMWARE_CA_PULSE_OXIMETER) {
-                menu.addAction("SPO2", this, SLOT(refreshDevice()));
-                menu.addAction("Hearth Rate", this, SLOT(refreshDevice()));
+                // add key map based on name
+                QString spo2HashName = QString("%1_%2").arg(description.hashName()).arg(CUSTOM_CHANNEL_SPO2_PERCENT);
+                QString hrHashName = QString("%1_%2").arg(description.hashName()).arg(CUSTOM_CHANNEL_SPO2_HR);
+                mapCustomChannelDescription.insert(spo2HashName, description);
+                mapCustomChannelDescription.insert(hrHashName, description);
+                mapCustomChannelType.insert(spo2HashName, CUSTOM_CHANNEL_SPO2_PERCENT);
+                mapCustomChannelType.insert(hrHashName, CUSTOM_CHANNEL_SPO2_HR);
+
+                QSignalMapper *signalMapper = new QSignalMapper(this);
+                // menu 1
+                menu.addAction("SPO2", signalMapper, SLOT(map()));
+                signalMapper->setMapping(menu.actions().last(), spo2HashName);
+                // menu 2
+                menu.addAction("Hearth Rate", signalMapper, SLOT(map()));
+                signalMapper->setMapping(menu.actions().last(), hrHashName);
+                connect(signalMapper, SIGNAL(mapped(QString)), this, SLOT(openCustomChannel(QString)));
             }
         }
     }
@@ -147,6 +162,28 @@ void MainWindow::clickDeviceAction(QTreeWidgetItem* item)
     else {
         openDeviceAction();
     }
+}
+void MainWindow::openCustomChannel(QString hashname)
+{
+    // assert
+    if (!mapCustomChannelType.contains(hashname)) return;
+    // get firmware from device description
+    UsbDeviceDesc description = mapCustomChannelDescription[hashname];
+    int type = mapCustomChannelType[hashname];
+    usb_firmware firmware = getUsbFirmware(description.productName, description.developer);
+    // create graph widget
+    TestWidget *child = new TestWidget(firmware, type, this);
+    ui->mdiArea->addSubWindow(child);
+    // connect signal from thread to widget
+    UsbThread* thread = mapDeviceThread[description.hashName()];
+    connect(thread, SIGNAL(send(QVector<int32_t>)), child, SLOT(recieve(QVector<int32_t>)));
+    child->setWindowTitle(
+        QString("%1 %2 [id:%3]")
+            .arg(description.productName)
+            .arg(CUSTOM_CHANNEL[type])
+            .arg(description.hashName())
+    );
+    child->showFullScreen();
 }
 
 void MainWindow::openDeviceAction()

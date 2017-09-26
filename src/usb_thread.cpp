@@ -101,6 +101,7 @@ void UsbThread::close()
 void UsbThread::run()
 {
     TIMEVAL timeout = {1, 0};
+    int completed;
 
     TRY("init usb context", libusb_init(&this->context));
 
@@ -116,13 +117,16 @@ void UsbThread::run()
         TRY("init transfer", initTransfer(EP_ADDRESS));
 
         forever {
+
             bool stop = false;
             lock.lock();
             stop = this->isStop;
             lock.unlock();
 
             if (stop) break;
-            libusb_handle_events_timeout(this->context, &timeout);
+            completed = (stop == false) ? 0 : 1;
+            libusb_handle_events_timeout_completed(this->context, &timeout, &completed);
+
         }
         //qDebug("read isClose");
         lock.lock();
@@ -165,7 +169,7 @@ int UsbThread::initTransfer(uint8_t endpoint)
         this, // pass USBThread in form of user data
         0); // unlimit timeout
     // submit transfer
-    TRY("submit transfer", libusb_submit_transfer(xfr));
+    ret_err = libusb_submit_transfer(xfr);
     return ret_err;
 }
 
@@ -279,7 +283,8 @@ void UsbThread::callback_transfer(struct libusb_transfer *xfr)
             data[5] = data[1] - data[0]/2;
             //BUG: HERE
             QVector<int32_t> _packet(12);
-            std::copy_n(data, 12, std::back_inserter(_packet));
+            for (int i=0; i<12; i++)
+                _packet[i] = data[i];
             emit send(_packet);
        }
        break;
@@ -287,8 +292,7 @@ void UsbThread::callback_transfer(struct libusb_transfer *xfr)
        break;
     }
     // end read USB
-
-    Q_ASSERT( libusb_submit_transfer(xfr) >= 0);
+    Q_ASSERT(libusb_submit_transfer(xfr) >= 0);
 }
 
 void LIBUSB_CALL callback_wrapper(struct libusb_transfer *xfr)

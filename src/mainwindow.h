@@ -6,6 +6,7 @@
 #include <QStringBuilder>
 #include <QMessageBox>
 #include <QTreeWidget>
+#include <QSignalMapper>
 #include <QDebug>
 #include "version.h"
 #include "firmware.h"
@@ -13,6 +14,7 @@
 #include "usb_thread.h"
 
 #include "graphwidget.h"
+#include "testwidget.h"
 
 namespace Ui {
 class MainWindow;
@@ -36,6 +38,7 @@ public slots:
     void closeDeviceAction(); 
     void showDevTreeMenu(const QPoint &pos);
     void clickDeviceAction(QTreeWidgetItem*);
+    void openCustomChannel(QString hashname);
     void addSubDeviceTree(UsbDeviceDesc description, int extraId);
 
 private:
@@ -43,6 +46,8 @@ private:
     UsbService      *usbService;
     QVector<UsbDeviceDesc>      *devices = nullptr;
     QMap<QString, UsbThread*>   mapDeviceThread;
+    QMap<QString, int>          mapCustomChannelType;
+    QMap<QString, UsbDeviceDesc> mapCustomChannelDescription;
     // Methods
 
 };

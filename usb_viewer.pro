@@ -20,7 +20,8 @@ SOURCES += src/firmware.cpp \
     src/usb_service.cpp \
     src/usb_thread.cpp \
     src/filter/pulseoximterfilter.cpp \
-    src/filter/spo2filter.cpp
+    src/filter/spo2filter.cpp \
+    src/testwidget.cpp
 
 HEADERS  += src/firmware.h \
     src/graphwidget.h \
@@ -31,10 +32,12 @@ HEADERS  += src/firmware.h \
     src/version.h \
     src/filter/basefilter.h \
     src/filter/pulseoximterfilter.h \
-    src/filter/spo2filter.h
+    src/filter/spo2filter.h \
+    src/testwidget.h
 
 FORMS    += src/mainwindow.ui \
-    src/graphwidget.ui
+    src/graphwidget.ui \
+    src/testwidget.ui
 
 win32:CONFIG(release, debug|release): LIBS += -L$$PWD/libs/libusb-1.0.21/MinGW32/static -llibusb-1.0
 else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/libs/libusb-1.0.21/MinGW32/static -llibusb-1.0

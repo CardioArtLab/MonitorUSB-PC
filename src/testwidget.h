@@ -1,26 +1,24 @@
-#ifndef GRAPHWIDGET_H
-#define GRAPHWIDGET_H
+#ifndef TESTWIDGET_H
+#define TESTWIDGET_H
 
 #include <QWidget>
 #include <QMutex>
 #include <QLinkedList>
 #include <QTime>
 #include "firmware.h"
-#include "filter/pulseoximterfilter.h"
 #include "filter/spo2filter.h"
 
 namespace Ui {
-class GraphWidget;
+class TestWidget;
 }
 
-class GraphWidget : public QWidget
+class TestWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit GraphWidget(usb_firmware firmware, int channel = 0, QWidget *parent = 0);
-    ~GraphWidget();
-
+    explicit TestWidget(usb_firmware _firmware, int _channel, QWidget *parent);
+    ~TestWidget();
 public slots:
     void onClickStopButton();
     void onClickSaveButton();
@@ -39,7 +37,6 @@ protected:
     double lastRenderTime = 0;
     double lastRemoveTime = 0;
     double convertingFactor = 1;
-    double Tmax = 0, Tmin = 0, Vmax = 0, Vmin = 0;
     uint32_t secTimeRange = 10;
     uint32_t secRecordTimeRange = 10;
 
@@ -49,8 +46,10 @@ protected:
     QMutex mutex;
     QTime time;
     QTimer *timer;
-    Ui::GraphWidget *ui;
-    SpO2Filter *spO2filter;
+    SpO2Filter filter[2];
+private:
+    Ui::TestWidget *ui;
+    double Tmin = 0, Tmax = 0, Vmin = 0, Vmax = 0;
 };
 
-#endif // GRAPHWIDGET_H
+#endif // TESTWIDGET_H

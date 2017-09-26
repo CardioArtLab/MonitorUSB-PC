@@ -9,7 +9,7 @@ public:
     PulseoximterFilter();
     double calculate(double time, double value);
 protected:
-    double tdata[10] = {0}, xdata[10] = {0}, ydata[2][5];
+    double xdata[10] = {0}, ydata[2][5];
 };
 
 #endif // PULSEOXIMTERFILTER_H

@@ -38,14 +38,16 @@
 #define FIRMWARE_CA_ECG_MONITOR__PD        "ECG Monitor"
 #define FIRMWARE_CA_ECG_MONITOR__PD_LEN    sizeof(FIRMWARE_CA_ECG_MONITOR__PD)-1
 //------------------------------------------------------------------------------
-// Macros
+// Custom channel
 //------------------------------------------------------------------------------
-// macro to handle ERROR
+#define CUSTOM_CHANNEL_SPO2_PERCENT 0
+#define CUSTOM_CHANNEL_SPO2_HR      1
+extern QString CUSTOM_CHANNEL[];
 
 //------------------------------------------------------------------------------
 // Type declear
 //------------------------------------------------------------------------------
-typedef struct _firmware_t {
+struct usb_firmware {
     int id;
     QString name;
     QString unit;
@@ -56,8 +58,14 @@ typedef struct _firmware_t {
     QVector<QString> descriptor;
     int num_channel;
     int active;
-} usb_firmware;
+};
 Q_DECLARE_METATYPE(usb_firmware)
 
+struct DataPoint
+{
+    double time;
+    double value;
+};
+//Q_DECLARE_METATYPE(DataPoint)
 usb_firmware getUsbFirmware(QString product, QString manufacturer);
 #endif // FIRMWARE_H
